@@ -27,6 +27,16 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <div v-if="evidenceFocus" class="alert info" data-panel="evidence-focus">
+      <strong>来自对比分析的样本证据：</strong>
+      语句 {{ evidenceFocus.statement }} · 目标数据集「{{ evidenceFocus.dataset }}」
+      <button class="link" type="button" @click="clearFocus">清除定位</button>
+      <p class="hint" v-if="focusRow">
+        证据记录：{{ focusRow['语句编号'] }} · {{ focusRow['查询表达式'] }}
+      </p>
+      <p class="hint" v-else>交互查询中没有找到该语句，可能已被归档。</p>
+    </div>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -35,7 +45,11 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
+        <tr
+          v-for="row in rows"
+          :key="String(row.id)"
+          :class="{ 'focus-row': evidenceFocus && row['语句编号'] === evidenceFocus.statement }"
+        >
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
           <td class="row-actions">
             <button
@@ -63,11 +77,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+
+import { useRoute, useRouter } from 'vue-router'
 
 import { request } from '@/api/client'
 
 type Row = Record<string, string | number | null>
+
+const route = useRoute()
+const router = useRouter()
 
 const ENDPOINT = '/api/query'
 const columns = ["语句编号", "查询表达式", "目标数据集", "返回字段", "排序条件", "分页大小", "最大行数", "超时秒数"]
@@ -80,6 +99,20 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const focusStatement = computed(() => String(route.query.statement ?? '').trim())
+const focusDataset = computed(() => String(route.query.dataset ?? '').trim())
+const evidenceFocus = computed(() =>
+  focusStatement.value
+    ? { statement: focusStatement.value, dataset: focusDataset.value }
+    : null,
+)
+const focusRow = computed(() =>
+  rows.value.find((row) => String(row['语句编号']) === focusStatement.value) ?? null,
+)
+
+function clearFocus() {
+  void router.replace({ path: '/query' })
+}
 
 function resetFilters() {
   filters.value = {}
@@ -112,9 +145,12 @@ async function runAction(action: string, row: Row) {
 
 async function reload() {
   errorMessage.value = ''
-  const query = new URLSearchParams(filters.value as Record<string, string>).toString()
+  const query: Record<string, string> = { ...filters.value }
+  // 证据跳转时把页码放大，保证高亮语句落在可见页里。
+  if (focusStatement.value && !query.keyword) query.keyword = focusStatement.value
+  const search = new URLSearchParams(query).toString()
   try {
-    const response = await request(`${ENDPOINT}?${query}`)
+    const response = await request(`${ENDPOINT}?${search}`)
     if (!response.ok) {
       throw new Error('查询语句列表读取失败')
     }

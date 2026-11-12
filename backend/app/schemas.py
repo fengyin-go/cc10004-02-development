@@ -28,6 +28,37 @@ class EntryPayload(BaseModel):
     remark: str | None = None
 
 
+class CompareMappingPayload(BaseModel):
+    """字段映射：业务键与数值字段的左右对应关系。"""
+
+    base_dataset_code: str
+    control_dataset_code: str
+    mapping: dict[str, Any]
+
+
+class CompareRoundCreate(BaseModel):
+    """启动比较轮次：可覆盖字段映射与两侧数据集，缺省沿用方案登记值。"""
+
+    mapping: dict[str, Any] | None = None
+    base_dataset_code: str | None = None
+    control_dataset_code: str | None = None
+    parent_round_id: int | None = None
+    remark: str | None = None
+
+
+class CompareQuarantineResolution(BaseModel):
+    """隔离键组的裁决：确认配对必须显式指定两侧记录，或整组不比较。"""
+
+    decision: str
+    base_record_id: str | None = None
+    control_record_id: str | None = None
+    note: str | None = None
+
+
+class CompareSignoff(BaseModel):
+    note: str | None = None
+
+
 
 class QueryEntry(BaseModel):
     """查询语句明细结构。"""

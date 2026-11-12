@@ -55,7 +55,9 @@ class DatastoreService:
         target = ACTION_RULES[action]
         if target not in STATUS_ORDER:
             return None, f"目标状态「{target}」不在允许的状态序列里"
+        previous = entry.get("status")
         entry["status"] = target
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
+        store.record_dataset_status(entry, previous, action)
         return entry, f"数据集定义已{action}"

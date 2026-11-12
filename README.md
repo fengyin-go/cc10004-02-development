@@ -57,9 +57,9 @@ npm run dev
 | 报告生成 | `reportgen` | 报告模板 | 模板编号、模板名称、包含图表 |
 | 异常检测 | `anomaly` | 检测规则 | 规则编号、监控指标、基线均值 |
 | 多维下钻 | `drill` | 下钻路径 | 路径编号、起点维度、下钻层数 |
-| 对比分析 | `compare` | 对比方案 | 方案编号、基准数据集、对照数据集 |
+| 对比分析 | `compare` | 对比方案 + 成对差异矩阵 | 方案编号、基准数据集、对照数据集、字段映射 |
 | 分析流水线 | `pipeline` | 流水线节点 | 节点编号、节点类型、输入源 |
-| 数据集管理 | `datastore` | 数据集定义 | 数据集编号、数据集名称、来源表名 |
+| 数据集管理 | `datastore` | 数据集定义 | 数据集编号、数据集名称、来源表名、字段定义 |
 | 趋势预测 | `forecast` | 预测模型 | 模型编号、模型类型、训练数据集 |
 | 数据分片 | `segment` | 分片规则 | 规则编号、目标数据集、分片字段 |
 | 调度管理 | `scheduler` | 调度配置 | 配置编号、关联任务、调度表达式 |
@@ -67,6 +67,44 @@ npm run dev
 | 查询缓存 | `cache` | 缓存策略 | 策略编号、目标查询、缓存键规则 |
 | 数据标签 | `tag` | 标签定义 | 标签编号、标签名称、计算表达式 |
 | 数据分享 | `share` | 分享链接 | 链接编号、目标数据集、访问密码 |
+
+## 对比分析：成对样本差异矩阵
+
+对比分析页在方案列表下方提供两阶段工作台：
+
+1. **字段映射**：从数据集管理里选两条已生效数据集（`GET /api/compare/mapping-preview`），
+   把业务键与数值字段一一对应；确认后写回方案（`PUT /api/compare/plans/{id}/mapping`）。
+2. **差异矩阵**：启动轮次（`POST /api/compare/plans/{id}/rounds`）后封存两侧数据集定义、
+   字段映射与阈值；`POST /rounds/{id}/complete` 生成矩阵，`GET /rounds/{id}/matrix` 分页取数。
+
+关键规则：
+
+- 配对只认业务键；任一侧同键多行即整组进入隔离区，必须显式选择两侧记录后才能确认配对，
+  不会按输入顺序自动配对（`POST /rounds/{id}/quarantine/{group}`）。
+- 格子颜色区分数值差（超阈值）、阈值内、缺行、空值；空字符串与 `null` 不会折算成数字 `0`。
+- 双击格子打开样本证据（`GET /rounds/{id}/cells/{cell_id}/evidence`），展示两侧原始记录与
+  对应交互查询语句，可跳转到交互查询页面定位语句。
+- 启动时封存的字段身份与阈值随轮次保留；重算与左右交换各自开启新轮次，旧轮次不变。
+  左右交换后差值方向相反。
+- 计算期间任一侧数据集被废弃（含“废弃后又恢复”），轮次转「已阻断」，拒绝结论签认。
+
+前端代码在 `frontend/src/views/compare/`（`MappingPanel`、`MatrixWorkspace`、`MatrixGrid`、
+`EvidenceDialog`），后端规则在 `backend/app/services/compare_matrix.py`，样本数据在
+`backend/app/sample_data.py`。
+
+后端测试：
+
+```bash
+cd backend && .venv/bin/python -m unittest tests.test_compare_matrix -v
+```
+
+前端冒烟（需要后端已启动；jsdom / @vue/test-utils / vite-node 为临时依赖，未写入 package.json）：
+
+```bash
+cd frontend
+npm install --no-save --no-package-lock jsdom@25 @vue/test-utils@2 vite-node@2
+NODE_OPTIONS="--import ./scripts/smoke-preload.mjs" npx vite-node scripts/smoke-compare.mjs
+```
 
 ## 约定
 
